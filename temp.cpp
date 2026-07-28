@@ -9,12 +9,12 @@ private:
 public:
     Matrix(std::vector<std::vector<double>> values): data(values) {}
 
-    int rows() const
+    int rows()
     {
 	return data.size();
     }
 
-    int columns() const
+    int columns()
     {
 	return data[0].size();
     }
@@ -46,14 +46,14 @@ public:
     }
     
     
-    Matrix operate(const Matrix& other, const std::string& operation) const
+    Matrix operate(const Matrix& other const std::string& operation) const
     {
 	if (columns() != other.columns() || rows() != other.rows())
 	{
 	    throw std::invalid_argument("Matrices' shape do not match!");
 	}
 
-	Matrix result = *this;
+	Matrix result = *this
 
 	for (int row=0; row < rows(); row++)
 	{
@@ -91,40 +91,46 @@ public:
 
     Matrix dot(const Matrix& other)
     {
-	if (columns() != other.rows())
+	if (column() != other.row())
 	{
-	    throw std::invalid_argument("Invalid dimensions!");
+	    throw std::invalid_argument('Invalid dimensions!')
 	}
 
-	std::vector<std::vector<double>> result(rows(), std::vector<double>(other.columns(), 0));
+	std::vector<std::vector<double>> result(rows(), std::vector<double>(other.columns(), 0);
 
-	for (int i = 0; i < rows(); i++)
+	// matrix 1
+
+	for (int g=0; g < rows(); g++)
 	{
-	    for (int j = 0; j < other.columns(); j++)
+	    for (int h=0; h < columns(); h++)
 	    {
-	    double c = 0;
-		for (int k = 0; k < columns(); k++)
-		{
-		    result[i][j] += data[i][k] * other.data[k][j];
-		}
+		// matrix 1 endpoint
+	    }
+	}
+
+	// matrix 2
+
+	for (int i=0; i < columns(); i++)
+	{
+	    for (int i=0; i < rows(); i++)
+	    {
+		// matrix 2 endpoint
+	    }
+	}
+
+	// matrix 3
+
+	for (int j=0; j < result.columns(); j++)
+	{
+	    for (int k=0; k < result.rows(); k++)
+	    {
+		// matrix 3 endpoint
 	    }
 	    
 	}
 	
-	return result;
-    }
-
-    Matrix T()
-    {
-	std::vector<std::vector<double>> result(columns(), std::vector<double>(rows(), 0));
-	for (int i=0; i < rows(); i++)
-	{
-	    for (int j=0; j < columns(); j++)
-	    {
-		result[j][i] = data[i][j];
-	    }
-	}
-	return result;
+	// matrix 3 = summation(matrix_2(i) * matrix_1(i))
+	
     }
     
 };
@@ -138,14 +144,25 @@ int main()
     {4, 5, 6},
     {7, 8, 9}});
 
-    Matrix B({
-    {10, 11, 12}});
-    
-    Matrix C = A.operate(A, "mult");
-    Matrix D = A.dot(B.T());
-    C.print();
-    std::cout << '\n';
-    D.print();
+    A.print();
     return 0;
 
+}
+#include <iostream>
+#include <vector>
+
+int main()        
+{
+    std::vector<std::vector<double>> X({{1,2,3}, {4,5,6}});
+
+    for (double a=0; a < X.size(); a++)
+    {
+	for (double b=0; b < X[0].size(); b++)
+	{
+	    int value = X[a][b];
+	    std::cout << value;
+	}
+    }
+    
+    return 0;
 }
