@@ -11,17 +11,25 @@ public:
 
     int rows() const
     {
+	if (data.size() == 0)
+	{
+	    throw std::invalid_argument("Empty Matrix!!!");
+	}
 	return data.size();
     }
 
     int columns() const
     {
+	if (data[0].size() == 0)
+	{
+	    throw std::invalid_argument("Empty Matrix!!!");
+	}
 	return data[0].size();
     }
     
     void print() const
     {
-	for (std::vector<double> row : data)
+	for (const std::vector<double>& row : data)
 	{
 	    int elecount = row.size();
 	    int ct = 0;
@@ -44,52 +52,94 @@ public:
 	    
 	}
     }
-    
-    
-    Matrix operate(const Matrix& other, const std::string& operation) const
+
+    Matrix operator+(const Matrix& other) const
     {
 	if (columns() != other.columns() || rows() != other.rows())
 	{
 	    throw std::invalid_argument("Matrices' shape do not match!");
 	}
-
+	
 	Matrix result = *this;
 
 	for (int row=0; row < rows(); row++)
 	{
 	    for (int column=0; column < columns(); column++)
 	    {
-		if (operation == "add")
-		{
-		    result.data[row][column] = data[row][column] + other.data[row][column];
-		}
-
-		if (operation == "mult")
-		{
-		    result.data[row][column] = data[row][column] * other.data[row][column];
-		}
-
-		if (operation == "div")
-		{
-		    if (other.data[row][column] == 0)
-		    {
-			throw std::invalid_argument("#DIV/0");
-		    }
-		    result.data[row][column] = data[row][column] / other.data[row][column];
-		}
-
-		if (operation == "sub")
-		{
-		    result.data[row][column] = data[row][column] - other.data[row][column];
-		}
-		
+		result.data[row][column] = data[row][column] + other.data[row][column];
 	    }
-	    
 	}
+
 	return result;
     }
 
-    Matrix dot(const Matrix& other)
+    Matrix operator*(const Matrix& other) const
+    {
+	if (columns() != other.columns() || rows() != other.rows())
+	{
+	    throw std::invalid_argument("Matrices' shape do not match!");
+	}
+	
+	Matrix result = *this;
+
+	for (int row=0; row < rows(); row++)
+	{
+	    for (int column=0; column < columns(); column++)
+	    {
+		result.data[row][column] = data[row][column] * other.data[row][column];
+	    }
+	}
+
+	return result;
+    }
+
+    Matrix operator-(const Matrix& other) const
+    {
+	if (columns() != other.columns() || rows() != other.rows())
+	{
+	    throw std::invalid_argument("Matrices' shape do not match!");
+	}
+	
+	Matrix result = *this;
+
+	for (int row=0; row < rows(); row++)
+	{
+	    for (int column=0; column < columns(); column++)
+	    {
+		result.data[row][column] = data[row][column] - other.data[row][column];
+	    }
+	}
+
+	return result;
+    }
+
+    Matrix operator/(const Matrix& other) const
+    {
+	if (columns() != other.columns() || rows() != other.rows())
+	{
+	    throw std::invalid_argument("Matrices' shape do not match!");
+	}
+	
+	Matrix result = *this;
+
+	for (int row=0; row < rows(); row++)
+	{
+	    for (int column=0; column < columns(); column++)
+	    {
+		if (other.data[row][column] == 0)
+		{
+		    throw std::invalid_argument("#DIV/O");
+		}
+		result.data[row][column] = data[row][column] / other.data[row][column];
+	    }
+	}
+
+	return result;
+    }
+
+    
+
+    Matrix dot(const Matrix& other) const
     {
 	if (columns() != other.rows())
 	{
@@ -102,7 +152,6 @@ public:
 	{
 	    for (int j = 0; j < other.columns(); j++)
 	    {
-	    double c = 0;
 		for (int k = 0; k < columns(); k++)
 		{
 		    result[i][j] += data[i][k] * other.data[k][j];
@@ -114,7 +163,7 @@ public:
 	return result;
     }
 
-    Matrix T()
+    Matrix T() const
     {
 	std::vector<std::vector<double>> result(columns(), std::vector<double>(rows(), 0));
 	for (int i=0; i < rows(); i++)
@@ -141,7 +190,7 @@ int main()
     Matrix B({
     {10, 11, 12}});
     
-    Matrix C = A.operate(A, "mult");
+    Matrix C = A + A;
     Matrix D = A.dot(B.T());
     C.print();
     std::cout << '\n';
