@@ -1,13 +1,14 @@
 #include <iostream>
 #include <vector>
 
+
 int main()
 {
-    std::vector<std::vector<double>> X{
-        {1, 2, 3},
-        {4, 5, 6}
-    };
-
- 
+    std::vector<int> X;
+    X.push_back(0);
+    for (int i : X)
+    {
+	std::cout << i;
+    }
     return 0;
 }
