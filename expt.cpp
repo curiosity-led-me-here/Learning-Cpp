@@ -6,6 +6,7 @@ int main()
 {
     std::vector<int> X;
     X.push_back(0);
+    X.psuh
     for (int i : X)
     {
 	std::cout << i;
