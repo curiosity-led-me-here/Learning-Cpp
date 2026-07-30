@@ -2,14 +2,37 @@
 #include <vector>
 
 
+void print_layer(std::vector<int> data, std::vector<int> dims, int depth, int idx)
+{
+    std::cout << "[";
+
+    if (depth == dims.size())
+    {
+	
+    }
+    
+    std::cout << "]";
+    
+}
+
+void recurse(int a)
+{
+    if (a == 10)
+    {
+	return;
+    }
+
+    else
+    {
+	recurse(a-1)
+    }
+
+}
+
+
+
 int main()
 {
-    std::vector<int> X;
-    X.push_back(0);
-    X.psuh
-    for (int i : X)
-    {
-	std::cout << i;
-    }
+    
     return 0;
 }

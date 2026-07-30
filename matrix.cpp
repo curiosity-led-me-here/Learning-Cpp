@@ -258,6 +258,7 @@ public:
 
 int main()
 {
+    /*
     Matrix A({
     {1, 2, 3},
     {4, 5, 6},
@@ -271,8 +272,10 @@ int main()
     C.print();
     std::cout << '\n';
     D.print();
+    */
 
     A.build(10);
+    
     return 0;
 
 }
