@@ -12,6 +12,12 @@ double randdouble(double min, double max)
     return distribution(generator);
 }
 
+enum class overwrite
+    {
+	True,
+	False
+    };
+
 std::vector<double> build(const std::vector<int>& dims)
 {
     int len = 1;
@@ -28,74 +34,93 @@ std::vector<double> build(const std::vector<int>& dims)
     return out;
 }
 
+template <typename T>
+T elesum(std::vector<T> arr)
+{
+    T a = 0;
+    for (T t : arr)
+    {
+	a += t;
+    }
+    return a;
+}
+
+template <typename T>
+T elemult(std::vector<T> arr)
+{
+    T a = 1;
+    for (T t : arr)
+    {
+	a *= t;
+    }
+    return a;
+}
+
+template <typename T>
+void print(std::vector<T> values)
+{
+    for (int i=0 ; i < values.size(); i++)
+    {
+	if (i == 0)
+	{
+	    std::cout << "[";
+	}
+	std::cout << values[i];
+	if (i == values.size()-1)
+	{
+	    std::cout << "]";
+	}
+	else
+	{
+	    std::cout << ", ";	
+	}
+    }
+}
+
+
 class Matrix
 {
 private:
     std::vector<double> data;
-    std::vector<int> get_strides(std::vector<double> input, std::vector<int> dimensions)
+    std::vector<int> dimensions;
+    std::vector<int> strides;
+    std::vector<int> get_strides(std::vector<int> dims)
     {
-	int l = 1;
-	for (int i : dimensions)
+	std::vector<int> out;
+	for (int j=0; j < dims.size()-1; j++)
 	{
-	    l = l * i;
-	}
-	if (l != input.size())
-	{
-	    throw std::invalid_argument("Incorrect dimension mapping. Mult(Dims) must match input size");
-	}
-	
-	std::vector<int> strides;
-	// Whatever dimensions are after current dimension, mult them up and append into the strides.
-	// Nested loop
-	for (int j=0; j < dimensions.size(); j++)
-	{
-	    int stride = 1;
-	    for (int k=j+1; k < dimensions.size()-1; k++)
+	    int a = 1;
+	    for (int i=j+1; i < dims.size(); i++)
 	    {
-		stride = stride * k;
+		a = a*dims[i];
 	    }
-	    strides.push_back(stride);
+	    out.push_back(a);
 	}
-	return strides;
+	out.push_back(1);
+	return out;
     }
 public:
-    const std::vector<int> dimensions;
     // constructor overloading
-    Matrix(const std::vector<double>& values, const std::vector<int>& dims) : data(values), dimensions(dims) {};
-    Matrix(const std::vector<int>& dims) : data(build(dims)), dimensions(dims) {};
-
-    int get_item(std::vector<int> coordinate)
+    Matrix(const std::vector<double>& values, const std::vector<int>& dims) : data(values), dimensions(dims), strides(get_strides(dims))
     {
-	std::vector<int> strides = get_strides(data, dimensions);
-	if (strides.size() != dimensions.size())
+	if (strides[0]*dimensions[0] != data.size())
 	{
-	    throw std::invalid_argument("Stride dimension should be equal to dimension count");
+	    throw std::invalid_argument("Dimensions do not match with flattened data vector!");
 	}
+    };
+    Matrix(const std::vector<int>& dims) : data(build(dims)), dimensions(dims), strides(get_strides(dimensions)) {};
 
-	if (dimensions.size() != coordinate.size())
-	{
-	    throw std::invalid_argument("Coordinates do not match the dimensions!");
-	}
-	
-	for (int a=0; a < dimensions.size(); a++)
-	{
-	    if (coordinate[a] > dimensions[a])
-	    {
-		throw std::invalid_argument("Index out of bounds!");
-	    }
-	}
-	
-	int coord = 0;
-	for (int i=0; i < strides.size(); i++)
-	{
-	    coord += strides[i]*coordinate[i];
-	}
-	double item = data[coord];
-	std::cout << item << '\n';
-	return item;
+    std::vector<int> shape()
+    {
+	return dimensions;
+    }
+    
+    const std::vector<int>& get_strides() const
+    {
+        return strides;
     }
 
-    void print(int depth, int& data_index) const
+    void print_list(int depth, int& data_index) const
     {
 	std::cout << "[";
 
@@ -115,7 +140,7 @@ public:
 	{
 	    for (int j=0; j < dimensions[depth]; j++)
 	    {
-		print(depth+1, data_index);
+		print_list(depth+1, data_index);
 		if (j != dimensions[depth]-1)
 		{
 		    std::cout << ",\n";
@@ -125,6 +150,56 @@ public:
 	
 	std::cout << "]";
     }
+
+    void print() const
+    {
+	int data_index = 0;
+	print_list(0, data_index);
+    }
+    
+    void reshape(std::vector<int> new_dims)
+    {
+	dimensions = new_dims;
+    }
+
+    int get_item(std::vector<int> coords)
+    {
+	if (coords.size() != dimensions.size())
+	{
+	    throw std::invalid_argument("Invalid indices!");
+	}
+	int coord = 0;
+	for (int i=0; i < coords.size(); i++)
+	{
+	    if (coords[i] >= dimensions[i])
+	    {
+		throw std::invalid_argument("Index out of bounds!");
+	    }
+	    coord += strides[i] * coords[i];
+	}
+       return coord;
+    }
+    
+    Matrix dot(Matrix& other)
+    // (a, b) x (b, c) --> (a, c)
+    {
+	std::vector<double> out;
+	for (int i=0; i < dimensions[0]; i++)
+	{
+	    for(int j=0; j < other.shape()[1]; j++)
+	    {
+		double ele = 0;
+		for (int k=0; k < dimensions[1]; k++)
+		{
+		    ele += data[get_item({i, k})] * other.data[other.get_item({k, j})];
+		}
+		out.push_back(ele);
+	    }
+	}
+	Matrix output(out, {dimensions[0], other.shape()[1]});
+	return output;
+    }
+    
 };
 
 // batched prod
@@ -132,10 +207,19 @@ public:
 
 int main()
 {
-    Matrix A({3, 5});
-    int data_index = 0;
-    A.print(0, data_index);
-    
+    Matrix A({4,2});
+    std::cout << "Old matrix";
+    std::cout << '\n';
+    A.print();
+    Matrix B({2,3});
+    std::cout << '\n';
+    std::cout << "New matrix";
+    std::cout << '\n';
+    B.print();
+    std::cout << '\n';
+    Matrix C = A.dot(B);
+    std::cout << "Dotted Matrix";
+    std::cout << '\n';
+    C.print();
     return 0;
-
 }
