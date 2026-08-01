@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include <vector>
 
@@ -38,11 +39,29 @@ std::vector<int> strides(std::vector<int> dims)
     return out;
 }
 
-
+template <typename T>
+void swap(std::vector<T>& inp, int a, int b)
+{
+    int last = inp[b];
+    int target = inp[a];
+    inp[b] = target;
+    inp[a] = last;
+}
 
 int main()
 {
     std::vector<int> dims = {5,3,1,5,8};
-    std::vector<int> out = strides(dims);
-    print(out);
+    int axis = 1;
+    dims.erase(dims.begin()+axis);
+    print(dims);
 }
+
+    /*
+    std::vector<int> cust_dims;
+	if (int i=0; i < dimensions.size()-1; i++)
+	{
+	    cust_dims.push_back(i);
+	}
+	cust_dims[cust_dims.size()-1] = axis;
+	cust_dims[axis] = cust_dims.size()-1;
+	*/

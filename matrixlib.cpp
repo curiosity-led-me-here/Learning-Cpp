@@ -18,6 +18,15 @@ enum class overwrite
 	False
     };
 
+template <typename T>
+void swap(std::vector<T>& inp, int a, int b)
+{
+    int last = inp[b];
+    int target = inp[a];
+    inp[b] = target;
+    inp[a] = last;
+}
+    
 std::vector<double> build(const std::vector<int>& dims)
 {
     int len = 1;
@@ -177,7 +186,25 @@ public:
 	    }
 	    coord += strides[i] * coords[i];
 	}
-       return coord;
+	return coord;
+    }
+
+    void place_item(std::vector<int> coords, double value)
+    {
+	if (coords.size() != dimensions.size())
+	{
+	    throw std::invalid_argument("Invalid indices!");
+	}
+	int coord = 0;
+	for (int i=0; i < coords.size(); i++)
+	{
+	    if (coords[i] >= dimensions[i])
+	    {
+		throw std::invalid_argument("Index out of bounds!");
+	    }
+	    coord += strides[i] * coords[i];
+	}
+	data[coord] = value;
     }
     
     Matrix dot(Matrix& other)
@@ -200,6 +227,176 @@ public:
 	return output;
     }
     
+    void squish_layer(int axis, int layer, std::vector<int> prefix, std::vector<double>& out, std::vector<int> dims)
+    // (a, b, c, d) --> (a, c, d)
+    {	
+	if (axis > dimensions.size()-1)
+	{
+	    throw std::invalid_argument("axis is out of bounds!");
+	}
+	if (layer == dims.size()-1)
+	{
+	    double summed = 0;
+	    for (int i=0; i < dims[layer]; i++)
+	    {
+		std::vector<int> coordinates = prefix;
+		coordinates.push_back(i);
+		swap(coordinates, axis, dims.size()-1);
+		summed += data[get_item(coordinates)];
+		
+	    }
+	    out.push_back(summed);
+	}
+	else
+	{
+	    for (int a=0; a < dims[layer]; a++)
+	    {
+		prefix.push_back(a);
+		squish_layer(axis, layer+1, prefix, out, dims);
+		prefix.pop_back();
+	    }
+	}
+    }
+
+    Matrix squish(int axis)
+    {
+	std::vector<int> prefix;
+	std::vector<double> out;
+	std::vector<int> dims = dimensions;
+	swap(dims, axis, dims.size()-1);
+	squish_layer(axis, 0, prefix, out, dims);
+	std::vector<int> out_dims = dimensions;
+	out_dims.erase(out_dims.begin()+axis);
+	return Matrix(out, out_dims);
+    }
+
+    void bdot(Matrix& other, int layer, std::vector<int> prefix, std::vector<double>& out)
+    {
+	if (dimensions.size() - layer == 2)
+	{
+	    for (int i=0; i < dimensions[layer]; i++)
+	    {
+		for (int j=0; j < other.shape()[layer+1]; j++)
+		{
+		    double x = 0;
+		    for (int k=0; k < dimensions[layer+1]; k++)
+		    {
+			std::vector<int> a = prefix;
+			a.push_back(i);
+			a.push_back(k);
+			std::vector<int> b = prefix;
+			b.push_back(k);
+			b.push_back(j);
+			x += data[get_item(a)] * other.data[other.get_item(b)];
+		    }
+		    out.push_back(x);
+		}
+	    }
+	}
+	else
+	{
+	    for (int l=0; l < dimensions[layer]; l++)
+	    {
+		prefix.push_back(l);
+		bdot(other, layer+1, prefix, out);
+		prefix.pop_back();
+	    }
+	}
+    }
+
+    Matrix b_dot(Matrix& other)
+    {
+	std::vector<int> prefix;
+	std::vector<double> out;
+	bdot(other, 0, prefix, out);
+	std::vector<int> out_dims = dimensions;
+	// (a, b, c, d) x (a, b, d, e) ==> (a, b, c, e)
+	out_dims[dimensions.size()-1] = other.shape().back();
+	return Matrix(out, out_dims);
+    }
+
+    template <typename Function>
+    void travrse(int layer, std::vector<int> prefix, Function logic)
+    {
+	if (layer == dimensions.size()-1)
+	{
+	    for (int i=0; i < dimensions[layer]; i++)
+	    {
+		std::vector<int> coordinates = prefix;
+		coordinates.push_back(i);
+		logic(coordinates, data[get_item(coordinates)]);
+	    }
+	}
+	else
+	{
+	    for (int j=0; j < dimensions[layer]; j++)
+	    {
+		prefix.push_back(j);
+		travrse(layer+1, prefix, logic);
+		prefix.pop_back();
+	    }
+	}
+    }
+
+    template <typename Function>
+    void traverse(Function logic)
+    {
+	std::vector<int> prefix;
+	travrse(0, prefix, logic);
+    }
+
+    Matrix operator+(Matrix& other)
+    {
+	
+	std::vector<double> out;
+	traverse([&other, &out](std::vector<int>& coords, double value)
+	{
+	    out.push_back(value + other.data[other.get_item(coords)]);
+	}
+	);
+	std::vector<int> dims = dimensions;
+	return Matrix(out, dims);
+    }
+
+    Matrix operator-(Matrix& other)
+    {
+	std::vector<double> out;
+	traverse([&other, &out](std::vector<int>& coords, double value)
+	{
+	    out.push_back(value - other.data[other.get_item(coords)]);
+	}
+	);
+	std::vector<int> dims = dimensions;
+	return Matrix(out, dims);
+    }
+
+    Matrix operator*(Matrix& other)
+    {
+	std::vector<double> out;
+	traverse([&other, &out](std::vector<int>& coords, double value)
+	{
+	    out.push_back(value * other.data[other.get_item(coords)]);
+	}
+	);
+	std::vector<int> dims = dimensions;
+	return Matrix(out, dims);
+    }
+
+    Matrix operator/(Matrix& other)
+    {
+	std::vector<double> out;
+	traverse([&other, &out](std::vector<int>& coords, double value)
+	{
+	    if (other.data[other.get_item(coords)] == 0)
+	    {
+		throw std::invalid_argument("#DIV/0!");
+	    }
+	    out.push_back(value / other.data[other.get_item(coords)]);
+	}
+	);
+	std::vector<int> dims = dimensions;
+	return Matrix(out, dims);
+    }
 };
 
 // batched prod
@@ -207,6 +404,7 @@ public:
 
 int main()
 {
+    /*
     Matrix A({4,2});
     std::cout << "Old matrix";
     std::cout << '\n';
@@ -221,5 +419,41 @@ int main()
     std::cout << "Dotted Matrix";
     std::cout << '\n';
     C.print();
+    Matrix X({2,6,5,8});
+    std::cout << "Array 1 with dimension: ";
+    print(X.shape());
+    std::cout << '\n';
+    X.print();
+    std::cout << '\n';
+    std::cout << '\n';
+    Matrix Y({2,6,8,9});
+    std::cout << "Array 2 with dimension: ";
+    print(Y.shape());
+    std::cout << '\n';
+    Y.print();
+    std::cout << '\n';
+    std::cout << '\n';
+    Matrix out = X.b_dot(Y);
+    std::cout << "Resulting array with dimension: ";
+    print(out.shape());
+    std::cout << '\n';
+    out.print();
+    Matrix A({4,2,3});
+    std::cout << "Unsquished matrix shape: ";
+    std::cout << '\n';
+    A.print();
+    std::cout << '\n';
+    Matrix B = A.squish(0);
+    std::cout << "New shape: ";
+    std::cout << '\n';
+    B.print();
+    */
+    Matrix C({3,4});
+    std::cout << '\n';
+    C.print();
+    std::cout << '\n';
+    Matrix D = C + C;
+    std::cout << '\n';
+    D.print();
     return 0;
 }
