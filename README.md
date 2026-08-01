@@ -5,7 +5,7 @@ This is an active learning repository. Implementations may be incomplete, experi
 
 ## Previous Implementation: Hamming Code
 
-The objective was to build out an single bit error correction code. The way it works is it assigns parity bits to the bit-grid which switch on when certain regions of the data grid have odd 1-bits. The data along with these set parity bits are then transmitted to the receiver. In the event of corruption of one of the bits, the parity bits would supply the require information to pinpoint the location of corruption. 
+The objective was to build out a single bit error correction code. The way it works is it assigns parity bits to the bit-grid which switch on when certain regions of the data grid have odd 1-bits. The data along with these set parity bits are then transmitted to the receiver. In the event of corruption of one of the bits, the parity bits would supply the require information to pinpoint the location of corruption. 
 The problem statement was earlier backups took up almost >50% by storing entire data in copies. However this compression algorithm uses about log_2(n) + 1 bits to store compressed backups.
 While in reality, corruption is barely restricted to single bit, and is usually in swarms which this code fails to correct, this was experiemental and just to learn C++ semantics.
 
