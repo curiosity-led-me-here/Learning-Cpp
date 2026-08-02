@@ -397,6 +397,52 @@ public:
 	std::vector<int> dims = dimensions;
 	return Matrix(out, dims);
     }
+    
+    static Matrix array(std::vector<int> dims, double value)
+    {
+	std::vector<double> out;
+	
+	for (int i=0; i < elemult(dims); i++)
+	{
+	    out.push_back(value);
+	}
+	return Matrix(out, dims);
+    }
+    
+    Matrix transpose()
+    {
+	std::vector<int> new_dim = dimensions;
+	swap(new_dim, 0, new_dim.size()-1);
+	Matrix out = Matrix::array(new_dim, 0.0);
+	out.traverse(
+	[&out, this](std::vector<int>& coords, double value)
+	{
+	    std::vector<int> new_coords = coords;
+	    swap(coords, 0, coords.size()-1);
+	    out.data[out.get_item(new_coords)] = data[get_item(coords)];
+	}
+	);
+	return out;
+    }
+
+    Matrix transpose(int axis1, int axis2)
+    {
+	if (axis1 > dimensions.size()-1 || axis2 > dimensions.size())
+	{
+	    throw std::invalid_argument("transpose(int axis1, int axis2) --> Axis out of bounds!");
+	}
+	std::vector<double> out;
+	traverse(
+	[&out, this, axis1, axis2](std::vector<int>& coords, double value)
+	{
+	    swap(coords, axis1, axis2);
+	    out.push_back(data[get_item(coords)]);
+	}
+	);
+	std::vector<int> new_dim = dimensions;
+	swap(new_dim, axis1, axis2);
+	return Matrix(out, new_dim);
+    }
 };
 
 // batched prod
@@ -447,13 +493,15 @@ int main()
     std::cout << "New shape: ";
     std::cout << '\n';
     B.print();
+    std::vector<int> arr = {2,4};
+    Matrix out = Matrix::array(arr, 1.2);
+    out.print();
     */
     Matrix C({3,4});
-    std::cout << '\n';
     C.print();
     std::cout << '\n';
-    Matrix D = C + C;
+    Matrix X = C.transpose();
     std::cout << '\n';
-    D.print();
+    X.print();
     return 0;
 }
