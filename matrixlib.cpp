@@ -26,6 +26,41 @@ void swap(std::vector<T>& inp, int a, int b)
     inp[b] = target;
     inp[a] = last;
 }
+
+template <typename T>
+struct Halves
+{
+    std::vector<T> half1;
+    std::vector<T> half2;
+};
+
+template <typename T>
+Halves<T> split(std::vector<T>& original, int split_at)
+{
+    std::vector<int> left(
+    original.begin(),
+    original.begin() + split_at
+    );
+
+    std::vector<int> right(
+    original.begin() + split_at,
+    original.end());
+    
+    return {left, right};
+}
+
+
+template <typename T>
+std::vector<T> join(std::vector<T> inp1, std::vector<T> inp2)
+{
+    std::vector<T> out = inp1;
+    for (int n=0; n < inp2.size(); n++)
+    {
+	out.push_back(inp2[n]);
+    }
+    return out;
+    
+}
     
 std::vector<double> build(const std::vector<int>& dims)
 {
@@ -86,7 +121,7 @@ void print(std::vector<T> values)
     }
 }
 
-
+// @outline Stores tensor data together with dimensions and strides.
 class Matrix
 {
 private:
@@ -129,7 +164,7 @@ public:
         return strides;
     }
 
-    void print_list(int depth, int& data_index) const
+    void print(int depth, int& data_index) const
     {
 	std::cout << "[";
 
@@ -149,7 +184,7 @@ public:
 	{
 	    for (int j=0; j < dimensions[depth]; j++)
 	    {
-		print_list(depth+1, data_index);
+		print(depth+1, data_index);
 		if (j != dimensions[depth]-1)
 		{
 		    std::cout << ",\n";
@@ -163,12 +198,13 @@ public:
     void print() const
     {
 	int data_index = 0;
-	print_list(0, data_index);
+	print(0, data_index);
     }
     
     void reshape(std::vector<int> new_dims)
     {
 	dimensions = new_dims;
+	strides = get_strides(new_dims);
     }
 
     int get_item(std::vector<int> coords)
@@ -207,27 +243,7 @@ public:
 	data[coord] = value;
     }
     
-    Matrix dot(Matrix& other)
-    // (a, b) x (b, c) --> (a, c)
-    {
-	std::vector<double> out;
-	for (int i=0; i < dimensions[0]; i++)
-	{
-	    for(int j=0; j < other.shape()[1]; j++)
-	    {
-		double ele = 0;
-		for (int k=0; k < dimensions[1]; k++)
-		{
-		    ele += data[get_item({i, k})] * other.data[other.get_item({k, j})];
-		}
-		out.push_back(ele);
-	    }
-	}
-	Matrix output(out, {dimensions[0], other.shape()[1]});
-	return output;
-    }
-    
-    void squish_layer(int axis, int layer, std::vector<int> prefix, std::vector<double>& out, std::vector<int> dims)
+    void squish(int axis, int layer, std::vector<int> prefix, std::vector<double>& out, std::vector<int> dims)
     // (a, b, c, d) --> (a, c, d)
     {	
 	if (axis > dimensions.size()-1)
@@ -252,7 +268,7 @@ public:
 	    for (int a=0; a < dims[layer]; a++)
 	    {
 		prefix.push_back(a);
-		squish_layer(axis, layer+1, prefix, out, dims);
+		squish(axis, layer+1, prefix, out, dims);
 		prefix.pop_back();
 	    }
 	}
@@ -264,13 +280,13 @@ public:
 	std::vector<double> out;
 	std::vector<int> dims = dimensions;
 	swap(dims, axis, dims.size()-1);
-	squish_layer(axis, 0, prefix, out, dims);
+	squish(axis, 0, prefix, out, dims);
 	std::vector<int> out_dims = dimensions;
 	out_dims.erase(out_dims.begin()+axis);
 	return Matrix(out, out_dims);
     }
 
-    void bdot(Matrix& other, int layer, std::vector<int> prefix, std::vector<double>& out)
+    void batched_dot(Matrix& other, int layer, std::vector<int> prefix, std::vector<double>& out)
     {
 	if (dimensions.size() - layer == 2)
 	{
@@ -298,17 +314,17 @@ public:
 	    for (int l=0; l < dimensions[layer]; l++)
 	    {
 		prefix.push_back(l);
-		bdot(other, layer+1, prefix, out);
+		batched_dot(other, layer+1, prefix, out);
 		prefix.pop_back();
 	    }
 	}
     }
 
-    Matrix b_dot(Matrix& other)
+    Matrix batched_dot(Matrix& other)
     {
 	std::vector<int> prefix;
 	std::vector<double> out;
-	bdot(other, 0, prefix, out);
+	batched_dot(other, 0, prefix, out);
 	std::vector<int> out_dims = dimensions;
 	// (a, b, c, d) x (a, b, d, e) ==> (a, b, c, e)
 	out_dims[dimensions.size()-1] = other.shape().back();
@@ -316,7 +332,7 @@ public:
     }
 
     template <typename Function>
-    void travrse(int layer, std::vector<int> prefix, Function logic)
+    void traverse(int layer, std::vector<int> prefix, Function logic)
     {
 	if (layer == dimensions.size()-1)
 	{
@@ -332,7 +348,7 @@ public:
 	    for (int j=0; j < dimensions[layer]; j++)
 	    {
 		prefix.push_back(j);
-		travrse(layer+1, prefix, logic);
+		traverse(layer+1, prefix, logic);
 		prefix.pop_back();
 	    }
 	}
@@ -342,7 +358,7 @@ public:
     void traverse(Function logic)
     {
 	std::vector<int> prefix;
-	travrse(0, prefix, logic);
+	traverse(0, prefix, logic);
     }
 
     Matrix operator+(Matrix& other)
@@ -431,22 +447,83 @@ public:
 	{
 	    throw std::invalid_argument("transpose(int axis1, int axis2) --> Axis out of bounds!");
 	}
-	std::vector<double> out;
+	std::vector<int> new_dim = dimensions;
+	swap(new_dim, axis1, axis2);
+	Matrix out = Matrix::array(new_dim, 0);
 	traverse(
 	[&out, this, axis1, axis2](std::vector<int>& coords, double value)
 	{
-	    swap(coords, axis1, axis2);
-	    out.push_back(data[get_item(coords)]);
+	    std::vector<int> new_coords = coords;
+	    swap(new_coords, axis1, axis2);
+	    out.place_item(new_coords, data[get_item(coords)]);
 	}
 	);
-	std::vector<int> new_dim = dimensions;
-	swap(new_dim, axis1, axis2);
-	return Matrix(out, new_dim);
+	return out;
     }
-};
+    
+    std::vector<int> get_dot_dims(std::vector<int> const dima, std::vector<int> const dimb)
+    {
+	std::vector<int> dim1 = dima;
+	std::vector<int> dim2 = dimb;
+	// (a, b, c, d) x (d, e, f, g) --> (a, b, c, e, f, g)
+	if (dim1.back() != dim2[0])
+	{
+	    throw std::invalid_argument("get_dot_dims(std::vector<int> dim1, std::vector<int> dim2) --> Inner dims do not match!");
+	}
+	dim1.pop_back();
+	for (int i=1; i < dim2.size(); i++)
+	{
+	    dim1.push_back(dim2[i]);
+	}
+	return dim1;
+    }
 
-// batched prod
-// tensor contraction
+    void dot(Matrix &other, int layer, std::vector<int> prefix, std::vector<double>& out)
+    // (a, b, c, d) x (d, e, f, g, h) --> (a, b, c, e, f, g, h)
+    {
+	std::vector<int> main_dims = dimensions;
+	std::vector<int> other_dims = other.dimensions;
+	std::vector<int> final_dims = get_dot_dims(main_dims, other_dims);
+	int common_dim = dimensions.back();
+	if (layer == final_dims.size())
+	{
+	    std::vector<int> all_coords = prefix;
+	    Halves<int> parts = split(all_coords, dimensions.size()-1);
+	    std::vector<int> prefix_x = parts.half1;
+	    std::vector<int> prefix_y = parts.half2;
+	    double summed = 0;
+	    for (int d=0; d < common_dim; d++)
+	    {
+		prefix_x.push_back(d);
+		prefix_y.insert(prefix_y.begin(), d);
+		summed += data[get_item(prefix_x)] * other.data[other.get_item(prefix_y)];
+		prefix_x.pop_back();
+		prefix_y.erase(prefix_y.begin());
+	    }
+	    out.push_back(summed);
+	}
+	else
+	{
+	    for (int x=0; x < final_dims[layer]; x++)
+	    {
+		prefix.push_back(x);
+		dot(other, layer+1, prefix, out);
+		prefix.pop_back();
+	    }
+	}
+    }
+
+    Matrix dot(Matrix& other)
+    {
+	std::vector<double> out;
+	std::vector<int> prefix;
+	dot(other, 0, prefix, out);
+	return Matrix(out, get_dot_dims(dimensions, other.dimensions));
+    }
+
+    
+    
+};
 
 int main()
 {
@@ -496,12 +573,105 @@ int main()
     std::vector<int> arr = {2,4};
     Matrix out = Matrix::array(arr, 1.2);
     out.print();
-    */
     Matrix C({3,4});
     C.print();
     std::cout << '\n';
     Matrix X = C.transpose();
     std::cout << '\n';
     X.print();
+    */
+    Matrix A({3,4,5,6});
+    std::cout << '\n';
+    std::cout << '\n';
+    A.print();
+    Matrix B({3,4,5,6});
+    std::cout << '\n';
+    std::cout << '\n';
+    B.print();
+    std::cout << '\n';
+    std::cout << '\n';
+    B = B.transpose(0, B.shape().size()-1);
+    Matrix C = A.dot(B);
+    C.print();
+    std::cout << '\n';
+    std::cout << '\n';
     return 0;
 }
+
+
+/*
+LEGACY FUNCTIONS
+
+void gdot(Matrix &other, int layer, std::vector<int> prefix_x, std::vector<int> prefix_y, std::vector<double>& out)
+{
+    // (a, b, c, d) x (d, e, f, g) --> (a, b, c, e, f, g)
+    if (layer == dimensions.size()-1)
+    {
+	for (int x1=0; x1 < dimensions[layer]; x1++)
+	{
+	    std::vector<int> pre_x = prefix_x;
+	    pre_x.push_back(x1);
+	    std::vector<int> other_dim = other.dimensions;
+	    swap(other_dim, 0, other_dim.size()-1);
+	    if (layer == dimensions.size()-1)
+	    {
+		for (int y1=0; y1 < other_dim[layer]; y1++)
+		{
+		    std::vector<int> pre_y = prefix_y;
+		    pre_y.push_back(y1);
+		    double summed = 0;
+		    for (int d=0; d < dimensions[dimensions.size()-1]; d++)
+		    {
+			pre_x.push_back(d);
+			pre_y.push_back(d);
+			swap(pre_y, 0, pre_y.size()-1);
+			summed += data[get_item(pre_x)] * other.data[other.get_item(pre_y)];
+			pre_x.pop_back();
+			pre_y.pop_back();
+		    }
+		    out.push_back(summed);
+		}
+	    }
+	    else
+	    {
+		for (int y2=0; y2 < other_dim[layer]; y2++)
+		{
+		    prefix_y.push_back(y2);
+		    gdot(other, layer+1, prefix_x, prefix_y, out);
+		    prefix_y.pop_back();
+		}
+	    }
+	}
+    }
+    else
+    {
+	for (int x2=0; x2 < dimensions[layer]; x2++)
+	{
+	    prefix_x.push_back(x2);
+	    gdot(other, layer+1, prefix_x, prefix_y, out);
+	    prefix_x.pop_back();
+	}
+    }
+}
+
+Matrix xdot(Matrix& other)
+// (a, b) x (b, c) --> (a, c)
+{
+    std::vector<double> out;
+    for (int i=0; i < dimensions[0]; i++)
+    {
+	for(int j=0; j < other.shape()[1]; j++)
+	{
+	    double ele = 0;
+	    for (int k=0; k < dimensions[1]; k++)
+	    {
+		ele += data[get_item({i, k})] * other.data[other.get_item({k, j})];
+	    }
+	    out.push_back(ele);
+	}
+    }
+    Matrix output(out, {dimensions[0], other.shape()[1]});
+    return output;
+}
+
+*/
